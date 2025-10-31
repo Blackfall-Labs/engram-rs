@@ -5,9 +5,9 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["Engram System Contributors"]
+authors = ["Magnus Trent"]
 license = "MIT"
-repository = "https://github.com/yourusername/engram-core"
+repository = "https://github.com/Manifest-Humanity/engram-core"
 
 [workspace.dependencies]
 # Shared dependencies
