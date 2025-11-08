@@ -1,5 +1,3 @@
-//! Binary format definitions for .eng archive files
-
 use crate::error::{EngramError, Result};
 use std::io::{Read, Write};
 
@@ -8,8 +6,8 @@ use std::io::{Read, Write};
 pub const MAGIC_NUMBER: [u8; 8] = [0x89, b'E', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
 
 /// Current format version
-pub const FORMAT_VERSION_MAJOR: u16 = 1;
-pub const FORMAT_VERSION_MINOR: u16 = 0;
+pub const FORMAT_VERSION_MAJOR: u16 = 0;
+pub const FORMAT_VERSION_MINOR: u16 = 3;
 
 /// Header size in bytes
 pub const HEADER_SIZE: usize = 64;
@@ -27,7 +25,6 @@ pub enum CompressionMethod {
     None = 0,
     Lz4 = 1,
     Zstd = 2,
-    Deflate = 3,
 }
 
 impl CompressionMethod {
@@ -36,12 +33,58 @@ impl CompressionMethod {
             0 => Ok(Self::None),
             1 => Ok(Self::Lz4),
             2 => Ok(Self::Zstd),
-            3 => Ok(Self::Deflate),
-            _ => Err(EngramError::InvalidStructure(format!(
-                "Unknown compression method: {}",
-                value
-            ))),
+            _ => Err(EngramError::InvalidCompression(value)),
         }
+    }
+
+    /// Choose best compression based on file type and size
+    pub fn choose_for_file(path: &str, size: u64) -> Self {
+        // Don't compress small files
+        if size < 1024 {
+            return Self::None;
+        }
+
+        // Check file extension
+        let path_lower = path.to_lowercase();
+
+        // Already compressed formats
+        if path_lower.ends_with(".png")
+            || path_lower.ends_with(".jpg")
+            || path_lower.ends_with(".jpeg")
+            || path_lower.ends_with(".gif")
+            || path_lower.ends_with(".mp3")
+            || path_lower.ends_with(".mp4")
+            || path_lower.ends_with(".zip")
+            || path_lower.ends_with(".gz")
+            || path_lower.ends_with(".7z")
+        {
+            return Self::None;
+        }
+
+        // Use Zstd for text/structured data (better compression)
+        if path_lower.ends_with(".txt")
+            || path_lower.ends_with(".md")
+            || path_lower.ends_with(".json")
+            || path_lower.ends_with(".toml")
+            || path_lower.ends_with(".xml")
+            || path_lower.ends_with(".cml")
+            || path_lower.ends_with(".html")
+            || path_lower.ends_with(".css")
+            || path_lower.ends_with(".js")
+        {
+            return Self::Zstd;
+        }
+
+        // Use LZ4 for binary data (faster)
+        if path_lower.ends_with(".db")
+            || path_lower.ends_with(".sqlite")
+            || path_lower.ends_with(".wasm")
+        {
+            return Self::Lz4;
+        }
+
+        // Default: Zstd for good compression
+        Self::Zstd
     }
 }
 
@@ -93,10 +136,7 @@ impl FileHeader {
         reader.read_exact(&mut magic)?;
 
         if magic != MAGIC_NUMBER {
-            return Err(EngramError::InvalidMagic {
-                expected: u64::from_be_bytes(MAGIC_NUMBER),
-                found: u64::from_be_bytes(magic),
-            });
+            return Err(EngramError::InvalidMagic);
         }
 
         let version_major = read_u16(&mut reader)?;
@@ -125,10 +165,9 @@ impl FileHeader {
     /// Validate version compatibility
     pub fn validate_version(&self) -> Result<()> {
         if self.version_major > FORMAT_VERSION_MAJOR {
-            return Err(EngramError::UnsupportedVersion {
-                major: self.version_major,
-                minor: self.version_minor,
-            });
+            return Err(EngramError::UnsupportedVersion(
+                (self.version_major as u16) << 8 | self.version_minor as u16,
+            ));
         }
         Ok(())
     }
@@ -170,7 +209,11 @@ impl EntryInfo {
         // Path length and path
         let path_bytes = self.path.as_bytes();
         if path_bytes.len() > MAX_PATH_LENGTH {
-            return Err(EngramError::PathTooLong(path_bytes.len()));
+            return Err(EngramError::PathError(format!(
+                "Path too long: {} bytes (max {})",
+                path_bytes.len(),
+                MAX_PATH_LENGTH
+            )));
         }
 
         let path_len = path_bytes.len() as u16;
@@ -193,7 +236,7 @@ impl EntryInfo {
         let mut sig = [0u8; 4];
         reader.read_exact(&mut sig)?;
         if sig != [0x43, 0x45, 0x4E, 0x54] {
-            return Err(EngramError::InvalidStructure(
+            return Err(EngramError::InvalidFormat(
                 "Invalid central directory entry signature".to_string(),
             ));
         }
@@ -216,7 +259,8 @@ impl EntryInfo {
         let mut path_buf = [0u8; 256];
         reader.read_exact(&mut path_buf)?;
 
-        let path = String::from_utf8(path_buf[..path_len as usize].to_vec())?;
+        let path = String::from_utf8(path_buf[..path_len as usize].to_vec())
+            .map_err(|e| EngramError::PathError(format!("Invalid UTF-8 in path: {}", e)))?;
 
         // Skip reserved bytes
         let mut reserved = [0u8; 20];
@@ -252,4 +296,78 @@ fn read_u64<R: Read>(mut reader: R) -> Result<u64> {
     let mut buf = [0u8; 8];
     reader.read_exact(&mut buf)?;
     Ok(u64::from_le_bytes(buf))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_compression_method_from_u8() {
+        assert_eq!(CompressionMethod::from_u8(0).unwrap(), CompressionMethod::None);
+        assert_eq!(CompressionMethod::from_u8(1).unwrap(), CompressionMethod::Lz4);
+        assert_eq!(CompressionMethod::from_u8(2).unwrap(), CompressionMethod::Zstd);
+        assert!(CompressionMethod::from_u8(99).is_err());
+    }
+
+    #[test]
+    fn test_compression_choice() {
+        assert_eq!(CompressionMethod::choose_for_file("test.txt", 2000), CompressionMethod::Zstd);
+        assert_eq!(CompressionMethod::choose_for_file("test.json", 5000), CompressionMethod::Zstd);
+        assert_eq!(CompressionMethod::choose_for_file("test.db", 10000), CompressionMethod::Lz4);
+        assert_eq!(CompressionMethod::choose_for_file("test.png", 5000), CompressionMethod::None);
+        assert_eq!(CompressionMethod::choose_for_file("test.txt", 500), CompressionMethod::None);
+    }
+
+    #[test]
+    fn test_file_header_roundtrip() {
+        let header = FileHeader {
+            version_major: 0,
+            version_minor: 3,
+            header_crc: 0x12345678,
+            central_directory_offset: 1024,
+            central_directory_size: 512,
+            entry_count: 10,
+            content_version: 1,
+        };
+
+        let mut buf = Vec::new();
+        header.write_to(&mut buf).unwrap();
+
+        assert_eq!(buf.len(), HEADER_SIZE);
+
+        let parsed = FileHeader::read_from(&buf[..]).unwrap();
+        assert_eq!(parsed.version_major, header.version_major);
+        assert_eq!(parsed.version_minor, header.version_minor);
+        assert_eq!(parsed.header_crc, header.header_crc);
+        assert_eq!(parsed.central_directory_offset, header.central_directory_offset);
+        assert_eq!(parsed.entry_count, header.entry_count);
+    }
+
+    #[test]
+    fn test_entry_info_roundtrip() {
+        let entry = EntryInfo {
+            path: "test/file.txt".to_string(),
+            data_offset: 1024,
+            uncompressed_size: 5000,
+            compressed_size: 2000,
+            crc32: 0xDEADBEEF,
+            modified_time: 1699999999,
+            compression: CompressionMethod::Zstd,
+            flags: 0,
+        };
+
+        let mut buf = Vec::new();
+        entry.write_to(&mut buf).unwrap();
+
+        assert_eq!(buf.len(), CD_ENTRY_SIZE);
+
+        let parsed = EntryInfo::read_from(&buf[..]).unwrap();
+        assert_eq!(parsed.path, entry.path);
+        assert_eq!(parsed.data_offset, entry.data_offset);
+        assert_eq!(parsed.uncompressed_size, entry.uncompressed_size);
+        assert_eq!(parsed.compressed_size, entry.compressed_size);
+        assert_eq!(parsed.crc32, entry.crc32);
+        assert_eq!(parsed.compression, entry.compression);
+    }
 }

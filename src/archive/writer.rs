@@ -1,7 +1,5 @@
-//! Archive writer implementation with compression support
-
 use crate::error::{EngramError, Result};
-use crate::format::{CompressionMethod, EntryInfo, FileHeader};
+use crate::archive::format::{CompressionMethod, EntryInfo, FileHeader};
 use std::fs::File;
 use std::io::{BufWriter, Seek, SeekFrom, Write};
 use std::path::Path;
@@ -90,8 +88,9 @@ impl ArchiveWriter {
 
     /// Add manifest.json from a serde_json::Value
     pub fn add_manifest(&mut self, manifest: &serde_json::Value) -> Result<()> {
-        let json = serde_json::to_vec_pretty(manifest)
-            .map_err(|e| EngramError::InvalidStructure(format!("Failed to serialize manifest: {}", e)))?;
+        let json = serde_json::to_vec_pretty(manifest).map_err(|e| {
+            EngramError::InvalidManifest(format!("Failed to serialize manifest: {}", e))
+        })?;
 
         // Manifests are typically small, store uncompressed for instant access
         self.add_file_with_compression("manifest.json", &json, CompressionMethod::None)
@@ -167,11 +166,6 @@ impl ArchiveWriter {
             CompressionMethod::None => return Ok((data.to_vec(), CompressionMethod::None)),
             CompressionMethod::Lz4 => Self::compress_lz4(data)?,
             CompressionMethod::Zstd => Self::compress_zstd(data)?,
-            CompressionMethod::Deflate => {
-                return Err(EngramError::CompressionError(
-                    "Deflate not yet implemented".to_string(),
-                ))
-            }
         };
 
         // Use compressed only if it's actually smaller
@@ -190,39 +184,6 @@ impl ArchiveWriter {
     /// Compress with Zstd (level 6 for balanced compression)
     fn compress_zstd(data: &[u8]) -> Result<Vec<u8>> {
         zstd::encode_all(data, 6)
-            .map_err(|e| EngramError::CompressionError(format!("Zstd compression failed: {}", e)))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_compression_selection() {
-        assert_eq!(
-            ArchiveWriter::select_compression("test.jpg", 10000),
-            CompressionMethod::None
-        );
-        assert_eq!(
-            ArchiveWriter::select_compression("test.json", 10000),
-            CompressionMethod::Zstd
-        );
-        assert_eq!(
-            ArchiveWriter::select_compression("test.db", 10000),
-            CompressionMethod::Zstd
-        );
-        assert_eq!(
-            ArchiveWriter::select_compression("test.bin", 10000),
-            CompressionMethod::Lz4
-        );
-    }
-
-    #[test]
-    fn test_small_file_no_compression() {
-        assert_eq!(
-            ArchiveWriter::select_compression("test.txt", 1000),
-            CompressionMethod::None
-        );
+            .map_err(|e| EngramError::CompressionFailed(format!("Zstd compression failed: {}", e)))
     }
 }

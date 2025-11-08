@@ -1,7 +1,5 @@
-//! Archive reader implementation with decompression support
-
 use crate::error::{EngramError, Result};
-use crate::format::{CompressionMethod, EntryInfo, FileHeader, CD_ENTRY_SIZE, HEADER_SIZE};
+use crate::archive::format::{CompressionMethod, EntryInfo, FileHeader};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -15,6 +13,7 @@ pub struct ArchiveReader {
     entry_list: Vec<String>,
 }
 
+/// This is essentially our "API"; the public facing portion of our code.
 impl ArchiveReader {
     /// Open an archive file for reading
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
@@ -89,18 +88,12 @@ impl ArchiveReader {
             CompressionMethod::None => compressed_data,
             CompressionMethod::Lz4 => Self::decompress_lz4(&compressed_data, entry)?,
             CompressionMethod::Zstd => Self::decompress_zstd(&compressed_data)?,
-            CompressionMethod::Deflate => {
-                return Err(EngramError::DecompressionError(
-                    "Deflate not yet implemented".to_string(),
-                ))
-            }
         };
 
         // Verify CRC
         let computed_crc = crc32fast::hash(&decompressed);
         if computed_crc != entry.crc32 {
             return Err(EngramError::CrcMismatch {
-                path: path.to_string(),
                 expected: entry.crc32,
                 actual: computed_crc,
             });
@@ -110,17 +103,17 @@ impl ArchiveReader {
     }
 
     /// Decompress LZ4 data
-    fn decompress_lz4(data: &[u8], entry: &EntryInfo) -> Result<Vec<u8>> {
+    fn decompress_lz4(data: &[u8], _entry: &EntryInfo) -> Result<Vec<u8>> {
         // lz4_flex::compress_prepend_size prepends the size, so we use decompress_size_prepended
         lz4_flex::decompress_size_prepended(data).map_err(|e| {
-            EngramError::DecompressionError(format!("LZ4 decompression failed: {}", e))
+            EngramError::DecompressionFailed(format!("LZ4 decompression failed: {}", e))
         })
     }
 
     /// Decompress Zstd data
     fn decompress_zstd(data: &[u8]) -> Result<Vec<u8>> {
         zstd::decode_all(data)
-            .map_err(|e| EngramError::DecompressionError(format!("Zstd decompression failed: {}", e)))
+            .map_err(|e| EngramError::DecompressionFailed(format!("Zstd decompression failed: {}", e)))
     }
 
     /// Read and parse manifest.json if it exists
@@ -131,7 +124,7 @@ impl ArchiveReader {
 
         let data = self.read_file("manifest.json")?;
         let manifest: serde_json::Value = serde_json::from_slice(&data)
-            .map_err(|e| EngramError::InvalidStructure(format!("Invalid manifest.json: {}", e)))?;
+            .map_err(|e| EngramError::InvalidManifest(format!("Invalid manifest.json: {}", e)))?;
 
         Ok(Some(manifest))
     }
@@ -142,17 +135,5 @@ impl ArchiveReader {
             .iter()
             .filter(|path| path.starts_with(prefix))
             .collect()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_compression_methods() {
-        assert_eq!(CompressionMethod::from_u8(0).unwrap(), CompressionMethod::None);
-        assert_eq!(CompressionMethod::from_u8(1).unwrap(), CompressionMethod::Lz4);
-        assert_eq!(CompressionMethod::from_u8(2).unwrap(), CompressionMethod::Zstd);
     }
 }

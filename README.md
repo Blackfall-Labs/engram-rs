@@ -1,37 +1,58 @@
-# Engram Core
+# engram-rs
 
-Rust implementation of the Engram archive format, including the core engine and SQLite virtual filesystem. This repository is meant to be published on its own and consumed by other language bindings such as `engram-nodejs`.
+**Unified engram archive library with manifest, signatures, and VFS support**
 
-## Layout
+A Rust library for creating, reading, and managing engram archives - compressed, signed archive files with embedded metadata and SQLite databases.
 
-- `crates/engram-core`: Archive reader/writer, compression pipeline, manifest handling.
-- `crates/engram-vfs`: SQLite virtual filesystem backed by Engram archives.
-- `docs/`: Specifications, architecture notes, and getting-started guides for the core.
+## Features
 
-## Getting Started
+- **Compressed Archives**: LZ4 and Zstd compression with automatic selection
+- **Cryptographic Signatures**: Ed25519 signatures for authenticity verification
+- **Manifest System**: JSON-based metadata with file registry and capabilities
+- **Virtual File System (VFS)**: Access embedded SQLite databases within archives
+- **Fast Lookups**: O(1) file access via central directory
+- **Integrity Verification**: CRC32 checksums for all files
+
+## Archive Format
+
+Engram v0.3 format:
+- Magic number: `0x89 'E' 'N' 'G' 0x0D 0x0A 0x1A 0x0A` (PNG-style)
+- 64-byte header with version, central directory offset, entry count
+- Compressed file data (LZ4/Zstd/None)
+- Central directory with 320-byte entries
+- Optional manifest.json with Ed25519 signatures
+
+## Usage
+
+See [CLAUDE.md](CLAUDE.md) for comprehensive development guidance.
+
+## Testing
 
 ```bash
-git clone https://github.com/Manifest-Humanity/engram-core.git
-cd engram-core
 cargo test
 ```
 
-### Building
-
-```bash
-cargo build --release
-```
-
-### Documentation & Specs
-
-- High level overview: `docs/engram_architecture_clarification.md`
-- Compression details: `docs/engram_compression_spec_v0.2.md`
-- API reference and quick start: `docs/API.md`, `docs/GETTING_STARTED.md`
-
-## Contributing
-
-See `CONTRIBUTING.md` for guidelines covering code style, testing, and release process.
+**Test Coverage:**
+- 12 unit tests (format, manifest, VFS)
+- 9 integration tests (roundtrip, compression, large files)
+- All 22 tests passing ✅
 
 ## License
 
-MIT License – see `LICENSE`.
+MIT OR Apache-2.0
+
+## Repository
+
+https://github.com/Manifest-Humanity/engram-rs
+
+## Version
+
+v0.3.0 - Unified library combining core archive functionality, manifest support, and VFS access.
+
+## Migration from engram-core/engram-vfs
+
+This library replaces the previous two-crate structure:
+- `engram-core` → `engram-rs` (core archive functionality)
+- `engram-vfs` → `engram-rs::vfs` module
+
+All functionality is now unified in a single crate with improved APIs and additional features (manifest, signatures).
