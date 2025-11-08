@@ -28,6 +28,7 @@ pub mod error;
 pub mod archive;
 pub mod manifest;
 pub mod vfs;
+pub mod compat;
 
 // Re-export commonly used types
 pub use archive::{
@@ -38,6 +39,7 @@ pub use archive::{
 pub use error::{EngramError, Result};
 pub use manifest::{Manifest, Author, Metadata, FileEntry, SignatureEntry};
 pub use vfs::VfsReader;
+pub use compat::EngramVfs;
 
 #[cfg(test)]
 mod tests {
