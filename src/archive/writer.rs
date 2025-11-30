@@ -4,7 +4,7 @@ use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -29,7 +29,13 @@ pub struct ArchiveWriter {
 impl ArchiveWriter {
     /// Create a new archive file
     pub fn create<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let file = File::create(path)?;
+        // Open with read+write for encryption support (need to read back for archive encryption)
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)?;
         let mut writer = BufWriter::new(file);
 
         // Write placeholder header (will be updated at finalization)
@@ -145,20 +151,21 @@ impl ArchiveWriter {
 
         let cd_size = self.current_offset - cd_offset + (self.entries.len() as u64 * 320);
 
-        // Flush writer before any encryption
+        // Flush writer before getting inner file
         self.writer.flush()?;
-
-        // Handle archive-level encryption
-        if self.encryption_mode == EncryptionMode::Archive {
-            self.encrypt_archive_payload()?;
-        }
 
         // Capture needed values before moving writer
         let encryption_mode = self.encryption_mode;
+        let encryption_key = self.encryption_key;
         let entry_count = self.entries.len() as u32;
 
-        // Get inner file for seeking
+        // Get inner file for encryption and header writing
         let mut file = self.writer.into_inner().map_err(|e| e.into_error())?;
+
+        // Handle archive-level encryption
+        if encryption_mode == EncryptionMode::Archive {
+            Self::encrypt_archive_payload_static(&mut file, &encryption_key.ok_or(EngramError::InvalidEncryptionMode)?)?;
+        }
 
         // Write final header with encryption flags
         file.seek(SeekFrom::Start(0))?;
@@ -258,15 +265,9 @@ impl ArchiveWriter {
 
     /// Encrypt entire archive payload (archive-level encryption)
     /// Reads everything after header, encrypts it, writes back
-    fn encrypt_archive_payload(&mut self) -> Result<()> {
-        let key = self
-            .encryption_key
-            .as_ref()
-            .ok_or(EngramError::InvalidEncryptionMode)?;
-
-        // Get the inner file
-        let file = self.writer.get_mut();
-
+    ///
+    /// This is a static method to avoid borrowing issues with BufWriter
+    fn encrypt_archive_payload_static(file: &mut File, key: &[u8; 32]) -> Result<()> {
         // Read everything after header (from byte 64 to EOF)
         file.seek(SeekFrom::Start(64))?;
         let mut payload = Vec::new();
@@ -288,10 +289,6 @@ impl ArchiveWriter {
         // Write: [nonce][ciphertext||tag]
         file.write_all(&nonce_bytes)?;
         file.write_all(&ciphertext_with_tag)?;
-
-        // Truncate file (in case encrypted data is smaller)
-        let final_size = 64 + 12 + ciphertext_with_tag.len() as u64;
-        file.set_len(final_size)?;
         file.flush()?;
 
         // Note: Central directory offsets in header are payload-relative (will be interpreted after decryption)

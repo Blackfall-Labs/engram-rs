@@ -303,3 +303,53 @@ fn test_empty_archive() {
         assert_eq!(reader.list_files().len(), 0);
     }
 }
+
+#[test]
+fn test_archive_encryption() {
+    let temp_file = NamedTempFile::new().unwrap();
+    let archive_path = temp_file.path();
+
+    // Test data
+    let test_content = b"Sensitive data that should be encrypted";
+    let encryption_key: [u8; 32] = [42; 32]; // Simple test key
+
+    // Create encrypted archive
+    {
+        let mut writer = ArchiveWriter::create(archive_path).unwrap();
+        writer = writer.with_archive_encryption(&encryption_key);
+        writer.add_file("secret.txt", test_content).unwrap();
+        writer.finalize().unwrap();
+    }
+
+    // Verify file is encrypted (plaintext not visible in raw bytes)
+    {
+        let raw_bytes = std::fs::read(archive_path).unwrap();
+        let contains_plaintext = raw_bytes
+            .windows(test_content.len())
+            .any(|window| window == test_content);
+        assert!(
+            !contains_plaintext,
+            "Archive should be encrypted (plaintext should not be visible)"
+        );
+    }
+
+    // Read encrypted archive with correct key
+    {
+        let mut reader = ArchiveReader::open(archive_path).unwrap();
+        reader = reader.with_decryption_key(&encryption_key);
+        reader.initialize().unwrap();
+
+        assert_eq!(reader.entry_count(), 1);
+        assert!(reader.contains("secret.txt"));
+
+        let decrypted = reader.read_file("secret.txt").unwrap();
+        assert_eq!(decrypted, test_content);
+    }
+
+    // Try to read without decryption key (should fail)
+    {
+        let mut reader = ArchiveReader::open(archive_path).unwrap();
+        let result = reader.initialize();
+        assert!(result.is_err(), "Should fail to initialize without decryption key");
+    }
+}

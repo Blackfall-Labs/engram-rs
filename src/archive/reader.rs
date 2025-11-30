@@ -100,8 +100,9 @@ impl ArchiveReader {
         let payload = self.decrypted_payload.as_ref()
             .ok_or(EngramError::DecryptionFailed)?;
 
-        // Create cursor at central directory offset (payload-relative)
-        let cd_offset = self.header.central_directory_offset as usize;
+        // Create cursor at central directory offset (payload-relative, so subtract header size)
+        // The decrypted payload starts at what would be byte 64 in the file
+        let cd_offset = (self.header.central_directory_offset - 64) as usize;
         let mut cursor = Cursor::new(&payload[cd_offset..]);
 
         // Read all entries from memory
@@ -159,10 +160,11 @@ impl ArchiveReader {
         // Read data (from file or from decrypted payload)
         let raw_data = match self.encryption_mode {
             EncryptionMode::Archive => {
-                // Read from decrypted payload buffer (data_offset is payload-relative)
+                // Read from decrypted payload buffer
+                // entry.data_offset is absolute (file offset), subtract header size for payload index
                 let payload = self.decrypted_payload.as_ref()
                     .ok_or(EngramError::DecryptionFailed)?;
-                let start = entry.data_offset as usize;
+                let start = (entry.data_offset - 64) as usize;
                 let end = start + entry.compressed_size as usize;
                 payload[start..end].to_vec()
             }
