@@ -1,7 +1,63 @@
 //! Manifest support for Engram archives
 //!
-//! Provides structure for manifest.json files that describe archive contents,
-//! capabilities, and include cryptographic signatures.
+//! # Manifest Scope
+//!
+//! The Engram manifest (`manifest.json`) is **reserved for format-level metadata only**:
+//! - Archive identification (name, version, description)
+//! - File inventory with integrity hashes (SHA-256)
+//! - Digital signatures for verification (Ed25519)
+//! - Format capabilities and compression metadata
+//!
+//! **Applications must use separate files for application-specific metadata:**
+//! - Recommended pattern: `<app-name>.json` (e.g., `crisis-frame.json`, `myapp.json`)
+//! - Applications may store multiple metadata files as needed
+//! - This allows multiple applications to coexist in one archive
+//!
+//! # Example Archive Structure
+//!
+//! ```text
+//! archive.eng
+//! ├── manifest.json           (Engram format metadata)
+//! ├── crisis-frame.json       (Crisis Frame backup metadata)
+//! ├── database/crisis.db      (Application data)
+//! └── logs/frame.log
+//! ```
+//!
+//! # Usage
+//!
+//! ```no_run
+//! use engram_rs::{ArchiveWriter, manifest::{Manifest, Author}};
+//! # use engram_rs::error::Result;
+//!
+//! # fn main() -> Result<()> {
+//! let mut writer = ArchiveWriter::create("backup.eng")?;
+//!
+//! // 1. Add Engram format manifest (reserved fields)
+//! let manifest = Manifest::new(
+//!     "backup-2025-11-30".to_string(),
+//!     "Crisis Frame Backup".to_string(),
+//!     Author::new("Crisis Frame System"),
+//!     "1.0.0".to_string()
+//! );
+//! writer.add_manifest(&serde_json::to_value(&manifest)?)?;
+//!
+//! // 2. Add application-specific manifest (separate file)
+//! let app_manifest = serde_json::json!({
+//!     "services": ["database", "logs", "config"],
+//!     "backup_type": "nightly",
+//!     "timestamp": "2025-11-30T08:00:00Z"
+//! });
+//! writer.add_file("crisis-frame.json",
+//!     serde_json::to_string_pretty(&app_manifest)?.as_bytes())?;
+//!
+//! // 3. Add application data
+//! writer.add_file_from_disk("database/crisis.db",
+//!     &std::path::Path::new("path/to/crisis.db"))?;
+//!
+//! writer.finalize()?;
+//! # Ok(())
+//! # }
+//! ```
 
 use crate::error::{EngramError, Result};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
@@ -53,6 +109,17 @@ pub struct Author {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+}
+
+impl Author {
+    /// Create a new author with just a name
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            email: None,
+            url: None,
+        }
+    }
 }
 
 /// Archive metadata
@@ -118,7 +185,7 @@ impl Manifest {
     /// Create a new manifest
     pub fn new(id: String, name: String, author: Author, version: String) -> Self {
         Self {
-            version: "0.3.0".to_string(),
+            version: "0.4.0".to_string(),
             id,
             name,
             description: None,
@@ -267,7 +334,7 @@ mod tests {
             "0.1.0".to_string(),
         );
 
-        assert_eq!(manifest.version, "0.3.0");
+        assert_eq!(manifest.version, "0.4.0");
         assert_eq!(manifest.id, "test-engram");
         assert_eq!(manifest.author.name, "Test Author");
     }

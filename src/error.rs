@@ -74,6 +74,22 @@ pub enum EngramError {
     #[error("Invalid secret key")]
     InvalidSecretKey,
 
+    // Encryption errors
+    #[error("Encryption failed")]
+    EncryptionFailed,
+
+    #[error("Decryption failed")]
+    DecryptionFailed,
+
+    #[error("Missing decryption key for encrypted archive")]
+    MissingDecryptionKey,
+
+    #[error("Invalid encryption mode for this operation")]
+    InvalidEncryptionMode,
+
+    #[error("Invalid nonce size or format")]
+    InvalidNonce,
+
     // I/O errors
     #[error("I/O error: {0}")]
     Io(#[from] io::Error),

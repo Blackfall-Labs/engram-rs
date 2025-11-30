@@ -7,7 +7,7 @@ pub const MAGIC_NUMBER: [u8; 8] = [0x89, b'E', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0
 
 /// Current format version
 pub const FORMAT_VERSION_MAJOR: u16 = 0;
-pub const FORMAT_VERSION_MINOR: u16 = 3;
+pub const FORMAT_VERSION_MINOR: u16 = 4;
 
 /// Header size in bytes
 pub const HEADER_SIZE: usize = 64;
@@ -25,6 +25,18 @@ pub enum CompressionMethod {
     None = 0,
     Lz4 = 1,
     Zstd = 2,
+}
+
+/// Encryption modes
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum EncryptionMode {
+    /// No encryption
+    None = 0b00,
+    /// Entire archive encrypted (for backups/secure storage)
+    Archive = 0b01,
+    /// Each file encrypted individually (for queryable archives)
+    PerFile = 0b10,
 }
 
 impl CompressionMethod {
@@ -88,6 +100,23 @@ impl CompressionMethod {
     }
 }
 
+impl EncryptionMode {
+    /// Extract encryption mode from flags field
+    pub fn from_flags(flags: u32) -> Self {
+        match flags & 0b11 {
+            0b00 => Self::None,
+            0b01 => Self::Archive,
+            0b10 => Self::PerFile,
+            _ => Self::None, // Reserved, treat as None
+        }
+    }
+
+    /// Convert encryption mode to flags bits
+    pub fn to_flags(self) -> u32 {
+        self as u32
+    }
+}
+
 /// File header at the beginning of the archive
 #[derive(Debug, Clone)]
 pub struct FileHeader {
@@ -98,6 +127,7 @@ pub struct FileHeader {
     pub central_directory_size: u64,
     pub entry_count: u32,
     pub content_version: u32,
+    pub flags: u32,
 }
 
 impl FileHeader {
@@ -110,7 +140,18 @@ impl FileHeader {
             central_directory_size: 0,
             entry_count: 0,
             content_version: 0,
+            flags: 0,
         }
+    }
+
+    /// Set encryption mode in flags
+    pub fn set_encryption_mode(&mut self, mode: EncryptionMode) {
+        self.flags = (self.flags & !0b11) | mode.to_flags();
+    }
+
+    /// Get encryption mode from flags
+    pub fn encryption_mode(&self) -> EncryptionMode {
+        EncryptionMode::from_flags(self.flags)
     }
 
     /// Write header to a writer
@@ -123,9 +164,10 @@ impl FileHeader {
         writer.write_all(&self.central_directory_size.to_le_bytes())?;
         writer.write_all(&self.entry_count.to_le_bytes())?;
         writer.write_all(&self.content_version.to_le_bytes())?;
+        writer.write_all(&self.flags.to_le_bytes())?;
 
-        // Write reserved bytes (24 bytes of zeros)
-        writer.write_all(&[0u8; 24])?;
+        // Write reserved bytes (20 bytes of zeros - was 24, now 20 due to flags)
+        writer.write_all(&[0u8; 20])?;
 
         Ok(())
     }
@@ -147,8 +189,18 @@ impl FileHeader {
         let entry_count = read_u32(&mut reader)?;
         let content_version = read_u32(&mut reader)?;
 
-        // Skip reserved bytes
-        let mut reserved = [0u8; 24];
+        // Read flags (v0.4+) or skip if v0.3
+        let flags = if version_minor >= 4 {
+            read_u32(&mut reader)?
+        } else {
+            // v0.3 compatibility: skip 4 bytes, flags = 0 (no encryption)
+            let mut skip = [0u8; 4];
+            reader.read_exact(&mut skip)?;
+            0
+        };
+
+        // Skip remaining reserved bytes (20 bytes for v0.4+, 20 bytes for v0.3)
+        let mut reserved = [0u8; 20];
         reader.read_exact(&mut reserved)?;
 
         Ok(Self {
@@ -159,6 +211,7 @@ impl FileHeader {
             central_directory_size,
             entry_count,
             content_version,
+            flags,
         })
     }
 
