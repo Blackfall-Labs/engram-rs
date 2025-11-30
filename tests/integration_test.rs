@@ -24,6 +24,7 @@ fn test_basic_archive_roundtrip() {
     // Read archive
     {
         let mut reader = ArchiveReader::open(archive_path).unwrap();
+        reader.initialize().unwrap();
 
         // Check file count
         assert_eq!(reader.entry_count(), 2);
@@ -66,6 +67,7 @@ fn test_compression_methods() {
     // Verify all files decompress correctly
     {
         let mut reader = ArchiveReader::open(archive_path).unwrap();
+        reader.initialize().unwrap();
 
         let uncompressed = reader.read_file("uncompressed.txt").unwrap();
         assert_eq!(uncompressed, test_data);
@@ -109,6 +111,7 @@ fn test_manifest_integration() {
     // Read and verify manifest
     {
         let mut reader = ArchiveReader::open(archive_path).unwrap();
+        reader.initialize().unwrap();
         let manifest_value = reader.read_manifest().unwrap();
         assert!(manifest_value.is_some());
 
@@ -198,6 +201,7 @@ fn test_large_files() {
 
     {
         let mut reader = ArchiveReader::open(archive_path).unwrap();
+        reader.initialize().unwrap();
         let read_data = reader.read_file("large.bin").unwrap();
         assert_eq!(read_data.len(), large_data.len());
         assert_eq!(read_data, large_data);
@@ -223,6 +227,7 @@ fn test_many_files() {
 
     {
         let mut reader = ArchiveReader::open(archive_path).unwrap();
+        reader.initialize().unwrap();
         assert_eq!(reader.entry_count(), file_count);
 
         for i in 0..file_count {
@@ -249,7 +254,8 @@ fn test_prefix_listing() {
     }
 
     {
-        let reader = ArchiveReader::open(archive_path).unwrap();
+        let mut reader = ArchiveReader::open(archive_path).unwrap();
+        reader.initialize().unwrap();
 
         let docs = reader.list_prefix("docs/");
         assert_eq!(docs.len(), 2);
@@ -274,6 +280,7 @@ fn test_file_not_found() {
 
     {
         let mut reader = ArchiveReader::open(archive_path).unwrap();
+        reader.initialize().unwrap();
         let result = reader.read_file("nonexistent.txt");
         assert!(result.is_err());
     }
@@ -290,7 +297,8 @@ fn test_empty_archive() {
     }
 
     {
-        let reader = ArchiveReader::open(archive_path).unwrap();
+        let mut reader = ArchiveReader::open(archive_path).unwrap();
+        reader.initialize().unwrap();
         assert_eq!(reader.entry_count(), 0);
         assert_eq!(reader.list_files().len(), 0);
     }

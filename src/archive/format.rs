@@ -376,12 +376,13 @@ mod tests {
     fn test_file_header_roundtrip() {
         let header = FileHeader {
             version_major: 0,
-            version_minor: 3,
+            version_minor: 4,
             header_crc: 0x12345678,
             central_directory_offset: 1024,
             central_directory_size: 512,
             entry_count: 10,
             content_version: 1,
+            flags: 0,
         };
 
         let mut buf = Vec::new();

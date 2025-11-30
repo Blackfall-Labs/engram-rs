@@ -19,7 +19,8 @@ pub struct VfsReader {
 impl VfsReader {
     /// Open an archive for VFS access
     pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let reader = ArchiveReader::open(path)?;
+        let mut reader = ArchiveReader::open(path)?;
+        reader.initialize()?;
         Ok(Self {
             reader,
             temp_dir: None,
