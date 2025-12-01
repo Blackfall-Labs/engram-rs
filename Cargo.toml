@@ -15,7 +15,7 @@ zstd = "0.13"
 crc32fast = "1.4"
 
 # Database
-rusqlite = { version = "0.31", features = ["bundled", "backup"] }
+rusqlite = { version = "0.32", features = ["bundled", "backup"] }
 
 # Cryptography
 ed25519-dalek = { version = "2.1", features = ["rand_core"] }
