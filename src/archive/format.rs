@@ -78,13 +78,24 @@ impl CompressionMethod {
             || path_lower.ends_with(".md")
             || path_lower.ends_with(".json")
             || path_lower.ends_with(".toml")
-            || path_lower.ends_with(".xml")
-            || path_lower.ends_with(".cml")
             || path_lower.ends_with(".html")
             || path_lower.ends_with(".css")
-            || path_lower.ends_with(".js")
         {
             return Self::Zstd;
+        }
+
+        // TODO: BytePunch future support (semantic tokenization)
+        if path_lower.ends_with(".cml")
+            || path_lower.ends_with(".xml")
+            || path_lower.ends_with(".js")
+        {
+            // TODO: Implement BytePunch compression (CML -> BytePunch)
+            return Self::None;
+        }
+
+        if path_lower.ends_with(".card") {
+            // TODO: Implement DataSpool compression (BytePunch -> Card)
+            return Self::None;
         }
 
         // Use LZ4 for binary data (faster)
@@ -357,19 +368,43 @@ mod tests {
 
     #[test]
     fn test_compression_method_from_u8() {
-        assert_eq!(CompressionMethod::from_u8(0).unwrap(), CompressionMethod::None);
-        assert_eq!(CompressionMethod::from_u8(1).unwrap(), CompressionMethod::Lz4);
-        assert_eq!(CompressionMethod::from_u8(2).unwrap(), CompressionMethod::Zstd);
+        assert_eq!(
+            CompressionMethod::from_u8(0).unwrap(),
+            CompressionMethod::None
+        );
+        assert_eq!(
+            CompressionMethod::from_u8(1).unwrap(),
+            CompressionMethod::Lz4
+        );
+        assert_eq!(
+            CompressionMethod::from_u8(2).unwrap(),
+            CompressionMethod::Zstd
+        );
         assert!(CompressionMethod::from_u8(99).is_err());
     }
 
     #[test]
     fn test_compression_choice() {
-        assert_eq!(CompressionMethod::choose_for_file("test.txt", 2000), CompressionMethod::Zstd);
-        assert_eq!(CompressionMethod::choose_for_file("test.json", 5000), CompressionMethod::Zstd);
-        assert_eq!(CompressionMethod::choose_for_file("test.db", 10000), CompressionMethod::Lz4);
-        assert_eq!(CompressionMethod::choose_for_file("test.png", 5000), CompressionMethod::None);
-        assert_eq!(CompressionMethod::choose_for_file("test.txt", 500), CompressionMethod::None);
+        assert_eq!(
+            CompressionMethod::choose_for_file("test.txt", 2000),
+            CompressionMethod::Zstd
+        );
+        assert_eq!(
+            CompressionMethod::choose_for_file("test.json", 5000),
+            CompressionMethod::Zstd
+        );
+        assert_eq!(
+            CompressionMethod::choose_for_file("test.db", 10000),
+            CompressionMethod::Lz4
+        );
+        assert_eq!(
+            CompressionMethod::choose_for_file("test.png", 5000),
+            CompressionMethod::None
+        );
+        assert_eq!(
+            CompressionMethod::choose_for_file("test.txt", 500),
+            CompressionMethod::None
+        );
     }
 
     #[test]
@@ -394,7 +429,10 @@ mod tests {
         assert_eq!(parsed.version_major, header.version_major);
         assert_eq!(parsed.version_minor, header.version_minor);
         assert_eq!(parsed.header_crc, header.header_crc);
-        assert_eq!(parsed.central_directory_offset, header.central_directory_offset);
+        assert_eq!(
+            parsed.central_directory_offset,
+            header.central_directory_offset
+        );
         assert_eq!(parsed.entry_count, header.entry_count);
     }
 
