@@ -2,10 +2,10 @@
 name = "engram-rs"
 version = "1.0.0"
 edition = "2021"
-authors = ["Manifest Humanity"]
-license = "MIT OR Apache-2.0"
-description = "Unified engram archive library with manifest, signatures, VFS, and frame compression"
-repository = "https://github.com/Manifest-Humanity/engram-rs"
+authors = ["Blackfall Labs"]
+license = "MIT"
+description = "Unified engram archive library with manifest, signatures, and VFS support"
+repository = "https://github.com/blackfall-labs/engram-rs"
 publish = false
 
 [dependencies]
@@ -39,4 +39,3 @@ tracing = "0.1"
 tempfile = "3.12"
 
 [dev-dependencies]
-
