@@ -284,16 +284,16 @@ impl Manifest {
         }
 
         // Decode public key
-        let public_key_bytes = hex::decode(&entry.public_key)
-            .map_err(|_| EngramError::InvalidPublicKey)?;
+        let public_key_bytes =
+            hex::decode(&entry.public_key).map_err(|_| EngramError::InvalidPublicKey)?;
         let public_key_array: [u8; 32] = public_key_bytes
             .try_into()
             .map_err(|_| EngramError::InvalidPublicKey)?;
         let public_key = VerifyingKey::from_bytes(&public_key_array)?;
 
         // Decode signature
-        let signature_bytes = hex::decode(&entry.signature)
-            .map_err(|_| EngramError::InvalidSignature)?;
+        let signature_bytes =
+            hex::decode(&entry.signature).map_err(|_| EngramError::InvalidSignature)?;
         let signature_array: [u8; 64] = signature_bytes
             .try_into()
             .map_err(|_| EngramError::InvalidSignature)?;
@@ -378,7 +378,9 @@ mod tests {
         let signing_key = SigningKey::generate(&mut csprng);
 
         // Sign the manifest
-        manifest.sign(&signing_key, Some("Test Signer".to_string())).unwrap();
+        manifest
+            .sign(&signing_key, Some("Test Signer".to_string()))
+            .unwrap();
 
         assert_eq!(manifest.signatures.len(), 1);
         assert_eq!(manifest.signatures[0].algorithm, "ed25519");

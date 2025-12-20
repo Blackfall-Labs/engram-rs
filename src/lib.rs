@@ -24,22 +24,21 @@
 //! ```
 
 // Core modules
-pub mod error;
 pub mod archive;
+pub mod compat;
+pub mod error;
 pub mod manifest;
 pub mod vfs;
-pub mod compat;
 
 // Re-export commonly used types
 pub use archive::{
-    ArchiveReader, ArchiveWriter, CompressionMethod, EntryInfo, FileHeader,
-    MAGIC_NUMBER, FORMAT_VERSION_MAJOR, FORMAT_VERSION_MINOR,
-    HEADER_SIZE, CD_ENTRY_SIZE, MAX_PATH_LENGTH,
+    ArchiveReader, ArchiveWriter, CompressionMethod, EntryInfo, FileHeader, CD_ENTRY_SIZE,
+    FORMAT_VERSION_MAJOR, FORMAT_VERSION_MINOR, HEADER_SIZE, MAGIC_NUMBER, MAX_PATH_LENGTH,
 };
-pub use error::{EngramError, Result};
-pub use manifest::{Manifest, Author, Metadata, FileEntry, SignatureEntry};
-pub use vfs::VfsReader;
 pub use compat::EngramVfs;
+pub use error::{EngramError, Result};
+pub use manifest::{Author, FileEntry, Manifest, Metadata, SignatureEntry};
+pub use vfs::VfsReader;
 
 #[cfg(test)]
 mod tests {

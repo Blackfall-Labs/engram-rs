@@ -88,9 +88,7 @@ impl VfsReader {
 
     /// Check if a database is already extracted
     pub fn is_extracted(&self, db_path: &str) -> bool {
-        self.extracted_dbs
-            .iter()
-            .any(|(path, _)| path == db_path)
+        self.extracted_dbs.iter().any(|(path, _)| path == db_path)
     }
 
     /// Get the path to an extracted database
@@ -123,10 +121,7 @@ mod tests {
 
         {
             let conn = Connection::open(db_path)?;
-            conn.execute(
-                "CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)",
-                [],
-            )?;
+            conn.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, name TEXT)", [])?;
             conn.execute("INSERT INTO test (name) VALUES (?1)", params!["Alice"])?;
             conn.execute("INSERT INTO test (name) VALUES (?1)", params!["Bob"])?;
         }

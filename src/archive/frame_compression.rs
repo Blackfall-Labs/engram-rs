@@ -1,5 +1,5 @@
-use crate::error::{EngramError, Result};
 use crate::archive::format::CompressionMethod;
+use crate::error::{EngramError, Result};
 use std::io::{Read, Write};
 
 /// Frame size for frame-based compression (64KB)
@@ -67,7 +67,11 @@ pub fn compress_frames(data: &[u8], method: CompressionMethod) -> Result<Vec<u8>
 ///
 /// # Returns
 /// Decompressed data
-pub fn decompress_frames(data: &[u8], method: CompressionMethod, expected_size: u64) -> Result<Vec<u8>> {
+pub fn decompress_frames(
+    data: &[u8],
+    method: CompressionMethod,
+    expected_size: u64,
+) -> Result<Vec<u8>> {
     let mut cursor = std::io::Cursor::new(data);
     let mut output = Vec::with_capacity(expected_size as usize);
 
@@ -120,8 +124,9 @@ fn compress_lz4_frame(data: &[u8]) -> Result<Vec<u8>> {
 
 /// Compress a single frame with Zstd
 fn compress_zstd_frame(data: &[u8]) -> Result<Vec<u8>> {
-    zstd::encode_all(data, 6)
-        .map_err(|e| EngramError::CompressionFailed(format!("Zstd frame compression failed: {}", e)))
+    zstd::encode_all(data, 6).map_err(|e| {
+        EngramError::CompressionFailed(format!("Zstd frame compression failed: {}", e))
+    })
 }
 
 /// Decompress a single LZ4 frame
@@ -133,8 +138,9 @@ fn decompress_lz4_frame(data: &[u8]) -> Result<Vec<u8>> {
 
 /// Decompress a single Zstd frame
 fn decompress_zstd_frame(data: &[u8]) -> Result<Vec<u8>> {
-    zstd::decode_all(data)
-        .map_err(|e| EngramError::DecompressionFailed(format!("Zstd frame decompression failed: {}", e)))
+    zstd::decode_all(data).map_err(|e| {
+        EngramError::DecompressionFailed(format!("Zstd frame decompression failed: {}", e))
+    })
 }
 
 /// Check if a file should use frame-based compression
@@ -159,7 +165,8 @@ mod tests {
         assert!(compressed.len() < data.len());
 
         // Decompress
-        let decompressed = decompress_frames(&compressed, CompressionMethod::Lz4, data.len() as u64).unwrap();
+        let decompressed =
+            decompress_frames(&compressed, CompressionMethod::Lz4, data.len() as u64).unwrap();
 
         // Verify exact match
         assert_eq!(decompressed.len(), data.len());
@@ -179,7 +186,8 @@ mod tests {
         assert!(compressed.len() < size / 100);
 
         // Decompress
-        let decompressed = decompress_frames(&compressed, CompressionMethod::Zstd, data.len() as u64).unwrap();
+        let decompressed =
+            decompress_frames(&compressed, CompressionMethod::Zstd, data.len() as u64).unwrap();
 
         // Verify exact match
         assert_eq!(decompressed.len(), data.len());
@@ -190,7 +198,7 @@ mod tests {
     fn test_should_use_frames() {
         assert!(!should_use_frames(10 * 1024 * 1024)); // 10MB - no
         assert!(!should_use_frames(40 * 1024 * 1024)); // 40MB - no
-        assert!(should_use_frames(60 * 1024 * 1024));  // 60MB - yes
+        assert!(should_use_frames(60 * 1024 * 1024)); // 60MB - yes
         assert!(should_use_frames(100 * 1024 * 1024)); // 100MB - yes
     }
 

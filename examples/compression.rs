@@ -1,7 +1,7 @@
 /// Example demonstrating different compression methods
 ///
 /// Run with: cargo run --example compression
-use engram_rs::{ArchiveWriter, ArchiveReader, CompressionMethod};
+use engram_rs::{ArchiveReader, ArchiveWriter, CompressionMethod};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -39,7 +39,11 @@ fn create_archive_no_compression(
     let mut writer = ArchiveWriter::create("example_none.eng")?;
 
     writer.add_file_with_compression("small.txt", small_data, CompressionMethod::None)?;
-    writer.add_file_with_compression("medium.txt", medium_text.as_bytes(), CompressionMethod::None)?;
+    writer.add_file_with_compression(
+        "medium.txt",
+        medium_text.as_bytes(),
+        CompressionMethod::None,
+    )?;
     writer.add_file_with_compression("large.bin", large_data, CompressionMethod::None)?;
 
     writer.finalize()?;
@@ -51,7 +55,11 @@ fn create_archive_no_compression(
 fn create_archive_lz4(medium_text: &str, large_data: &[u8]) -> Result<(), Box<dyn Error>> {
     let mut writer = ArchiveWriter::create("example_lz4.eng")?;
 
-    writer.add_file_with_compression("medium.txt", medium_text.as_bytes(), CompressionMethod::Lz4)?;
+    writer.add_file_with_compression(
+        "medium.txt",
+        medium_text.as_bytes(),
+        CompressionMethod::Lz4,
+    )?;
     writer.add_file_with_compression("large.bin", large_data, CompressionMethod::Lz4)?;
 
     writer.finalize()?;
@@ -63,7 +71,11 @@ fn create_archive_lz4(medium_text: &str, large_data: &[u8]) -> Result<(), Box<dy
 fn create_archive_zstd(medium_text: &str, large_data: &[u8]) -> Result<(), Box<dyn Error>> {
     let mut writer = ArchiveWriter::create("example_zstd.eng")?;
 
-    writer.add_file_with_compression("medium.txt", medium_text.as_bytes(), CompressionMethod::Zstd)?;
+    writer.add_file_with_compression(
+        "medium.txt",
+        medium_text.as_bytes(),
+        CompressionMethod::Zstd,
+    )?;
     writer.add_file_with_compression("large.bin", large_data, CompressionMethod::Zstd)?;
 
     writer.finalize()?;
@@ -81,10 +93,16 @@ fn compare_archives() -> Result<(), Box<dyn Error>> {
 
     println!("\n   Archive sizes:");
     println!("     None:  {:>8} bytes", none_size);
-    println!("     LZ4:   {:>8} bytes ({:.1}% of uncompressed)",
-        lz4_size, (lz4_size as f64 / none_size as f64) * 100.0);
-    println!("     Zstd:  {:>8} bytes ({:.1}% of uncompressed)",
-        zstd_size, (zstd_size as f64 / none_size as f64) * 100.0);
+    println!(
+        "     LZ4:   {:>8} bytes ({:.1}% of uncompressed)",
+        lz4_size,
+        (lz4_size as f64 / none_size as f64) * 100.0
+    );
+    println!(
+        "     Zstd:  {:>8} bytes ({:.1}% of uncompressed)",
+        zstd_size,
+        (zstd_size as f64 / none_size as f64) * 100.0
+    );
 
     // Verify we can read from compressed archives
     println!("\n   Verifying decompression:");

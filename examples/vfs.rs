@@ -101,11 +101,7 @@ fn query_embedded_database() -> Result<(), Box<dyn Error>> {
     }
 
     // Count total users
-    let count: i32 = conn.query_row(
-        "SELECT COUNT(*) FROM users",
-        [],
-        |row| row.get(0)
-    )?;
+    let count: i32 = conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
 
     println!("\n   Total users in database: {}", count);
 

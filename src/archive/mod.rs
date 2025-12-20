@@ -11,8 +11,7 @@ pub use format::{
     FORMAT_VERSION_MINOR, HEADER_SIZE, MAGIC_NUMBER, MAX_PATH_LENGTH,
 };
 pub use frame_compression::{
-    compress_frames, decompress_frames, should_use_frames, FRAME_SIZE,
-    MIN_FRAME_COMPRESSION_SIZE,
+    compress_frames, decompress_frames, should_use_frames, FRAME_SIZE, MIN_FRAME_COMPRESSION_SIZE,
 };
 pub use local_entry::{LocalEntryHeader, LOCAL_ENTRY_SIGNATURE};
 pub use reader::ArchiveReader;

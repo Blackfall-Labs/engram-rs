@@ -138,11 +138,11 @@ impl EndRecord {
         header_entry_count: u32,
     ) -> Result<()> {
         // Verify version matches
-        if self.version_major != header_version_major || self.version_minor != header_version_minor {
+        if self.version_major != header_version_major || self.version_minor != header_version_minor
+        {
             return Err(EngramError::InvalidFormat(format!(
                 "ENDR version mismatch: header v{}.{}, ENDR v{}.{}",
-                header_version_major, header_version_minor,
-                self.version_major, self.version_minor
+                header_version_major, header_version_minor, self.version_major, self.version_minor
             )));
         }
 
@@ -200,11 +200,11 @@ mod tests {
     #[test]
     fn test_end_record_roundtrip() {
         let record = EndRecord::new(
-            1,      // version_major
-            0,      // version_minor
-            1024,   // central_directory_offset
-            3200,   // central_directory_size (10 entries * 320 bytes)
-            10,     // entry_count
+            1,          // version_major
+            0,          // version_minor
+            1024,       // central_directory_offset
+            3200,       // central_directory_size (10 entries * 320 bytes)
+            10,         // entry_count
             0xDEADBEEF, // archive_crc32
         );
 
@@ -217,7 +217,10 @@ mod tests {
         let parsed = EndRecord::read_from(&buf[..]).unwrap();
         assert_eq!(parsed.version_major, record.version_major);
         assert_eq!(parsed.version_minor, record.version_minor);
-        assert_eq!(parsed.central_directory_offset, record.central_directory_offset);
+        assert_eq!(
+            parsed.central_directory_offset,
+            record.central_directory_offset
+        );
         assert_eq!(parsed.central_directory_size, record.central_directory_size);
         assert_eq!(parsed.entry_count, record.entry_count);
         assert_eq!(parsed.archive_crc32, record.archive_crc32);
@@ -230,7 +233,10 @@ mod tests {
 
         let result = EndRecord::read_from(&buf[..]);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Invalid end record signature"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid end record signature"));
     }
 
     #[test]
@@ -241,15 +247,23 @@ mod tests {
         assert!(record.validate_against_header(1, 0, 1024, 3200, 10).is_ok());
 
         // Version mismatch
-        assert!(record.validate_against_header(0, 4, 1024, 3200, 10).is_err());
+        assert!(record
+            .validate_against_header(0, 4, 1024, 3200, 10)
+            .is_err());
 
         // Offset mismatch
-        assert!(record.validate_against_header(1, 0, 2048, 3200, 10).is_err());
+        assert!(record
+            .validate_against_header(1, 0, 2048, 3200, 10)
+            .is_err());
 
         // Size mismatch
-        assert!(record.validate_against_header(1, 0, 1024, 6400, 10).is_err());
+        assert!(record
+            .validate_against_header(1, 0, 1024, 6400, 10)
+            .is_err());
 
         // Entry count mismatch
-        assert!(record.validate_against_header(1, 0, 1024, 3200, 20).is_err());
+        assert!(record
+            .validate_against_header(1, 0, 1024, 3200, 20)
+            .is_err());
     }
 }

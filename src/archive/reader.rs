@@ -1,8 +1,8 @@
-use crate::error::{EngramError, Result};
 use crate::archive::end_record::{EndRecord, END_RECORD_SIZE};
 use crate::archive::format::{CompressionMethod, EncryptionMode, EntryInfo, FileHeader};
 use crate::archive::frame_compression::{decompress_frames, should_use_frames};
 use crate::archive::local_entry::LocalEntryHeader;
+use crate::error::{EngramError, Result};
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
@@ -87,7 +87,8 @@ impl ArchiveReader {
     /// Read central directory from file
     fn read_central_directory_from_file(&mut self) -> Result<()> {
         // Seek to central directory
-        self.file.seek(SeekFrom::Start(self.header.central_directory_offset))?;
+        self.file
+            .seek(SeekFrom::Start(self.header.central_directory_offset))?;
 
         // Read all entries
         let mut entries = HashMap::with_capacity(self.header.entry_count as usize);
@@ -106,7 +107,9 @@ impl ArchiveReader {
 
     /// Read central directory from decrypted payload buffer
     fn read_central_directory_from_memory(&mut self) -> Result<()> {
-        let payload = self.decrypted_payload.as_ref()
+        let payload = self
+            .decrypted_payload
+            .as_ref()
             .ok_or(EngramError::DecryptionFailed)?;
 
         // Create cursor at central directory offset (payload-relative, so subtract header size)
@@ -171,7 +174,9 @@ impl ArchiveReader {
         let raw_data = match self.encryption_mode {
             EncryptionMode::Archive => {
                 // Read from decrypted payload buffer
-                let payload = self.decrypted_payload.as_ref()
+                let payload = self
+                    .decrypted_payload
+                    .as_ref()
                     .ok_or(EngramError::DecryptionFailed)?;
 
                 // entry.data_offset is absolute (file offset), subtract header size for payload index
@@ -252,8 +257,9 @@ impl ArchiveReader {
 
     /// Decompress Zstd data
     fn decompress_zstd(data: &[u8]) -> Result<Vec<u8>> {
-        zstd::decode_all(data)
-            .map_err(|e| EngramError::DecompressionFailed(format!("Zstd decompression failed: {}", e)))
+        zstd::decode_all(data).map_err(|e| {
+            EngramError::DecompressionFailed(format!("Zstd decompression failed: {}", e))
+        })
     }
 
     /// Read the Engram format manifest
@@ -381,7 +387,9 @@ impl ArchiveReader {
 
     /// Decrypt entire archive payload (archive-level encryption)
     fn decrypt_archive_payload(&mut self) -> Result<()> {
-        let key = self.decryption_key.as_ref()
+        let key = self
+            .decryption_key
+            .as_ref()
             .ok_or(EngramError::MissingDecryptionKey)?;
 
         // Calculate encrypted payload size (file - header - ENDR)
@@ -389,7 +397,7 @@ impl ArchiveReader {
         let encrypted_size = file_size - 64 - (END_RECORD_SIZE as u64);
 
         // Read encrypted payload: [nonce 12 bytes][ciphertext||tag]
-        self.file.seek(SeekFrom::Start(64))?;  // After header
+        self.file.seek(SeekFrom::Start(64))?; // After header
 
         // Read nonce
         let mut nonce_bytes = [0u8; 12];
@@ -416,11 +424,14 @@ impl ArchiveReader {
     /// Input: [nonce 12 bytes][ciphertext||tag]
     /// Output: plaintext (compressed data)
     fn decrypt_file_data(&self, payload: &[u8]) -> Result<Vec<u8>> {
-        if payload.len() < 28 {  // 12 nonce + 16 tag minimum
+        if payload.len() < 28 {
+            // 12 nonce + 16 tag minimum
             return Err(EngramError::DecryptionFailed);
         }
 
-        let key = self.decryption_key.as_ref()
+        let key = self
+            .decryption_key
+            .as_ref()
             .ok_or(EngramError::MissingDecryptionKey)?;
 
         // Extract nonce (first 12 bytes)

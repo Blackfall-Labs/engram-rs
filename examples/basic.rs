@@ -1,7 +1,7 @@
 /// Basic example demonstrating archive creation and reading
 ///
 /// Run with: cargo run --example basic
-use engram_rs::{ArchiveWriter, ArchiveReader, CompressionMethod};
+use engram_rs::{ArchiveReader, ArchiveWriter, CompressionMethod};
 use std::error::Error;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -23,15 +23,21 @@ fn create_archive() -> Result<(), Box<dyn Error>> {
     let mut writer = ArchiveWriter::create("example_basic.eng")?;
 
     // Add some files with different content
-    writer.add_file("readme.txt", b"This is a readme file for the basic example.")?;
-    writer.add_file("data.json", br#"{"name": "Basic Example", "version": "1.0.0"}"#)?;
+    writer.add_file(
+        "readme.txt",
+        b"This is a readme file for the basic example.",
+    )?;
+    writer.add_file(
+        "data.json",
+        br#"{"name": "Basic Example", "version": "1.0.0"}"#,
+    )?;
     writer.add_file("notes.md", b"# Notes\n\nThis is a markdown file.")?;
 
     // You can also specify compression explicitly
     writer.add_file_with_compression(
         "binary.dat",
-        &[0u8; 1000],  // 1KB of zeros
-        CompressionMethod::Lz4
+        &[0u8; 1000], // 1KB of zeros
+        CompressionMethod::Lz4,
     )?;
 
     writer.finalize()?;

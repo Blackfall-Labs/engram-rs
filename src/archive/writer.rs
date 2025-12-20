@@ -1,4 +1,3 @@
-use crate::error::{EngramError, Result};
 use crate::archive::end_record::EndRecord;
 use crate::archive::format::{
     CompressionMethod, EncryptionMode, EntryInfo, FileHeader, FORMAT_VERSION_MAJOR,
@@ -6,6 +5,7 @@ use crate::archive::format::{
 };
 use crate::archive::frame_compression::{compress_frames, should_use_frames};
 use crate::archive::local_entry::LocalEntryHeader;
+use crate::error::{EngramError, Result};
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
@@ -112,7 +112,7 @@ impl ArchiveWriter {
 
         // Create and write Local Entry Header (LOCA)
         let local_header = LocalEntryHeader::new(
-            data.len() as u64,         // uncompressed_size
+            data.len() as u64,          // uncompressed_size
             final_payload.len() as u64, // compressed_size
             crc32,
             modified_time,
@@ -186,7 +186,10 @@ impl ArchiveWriter {
 
         // Handle archive-level encryption
         if encryption_mode == EncryptionMode::Archive {
-            Self::encrypt_archive_payload_static(&mut file, &encryption_key.ok_or(EngramError::InvalidEncryptionMode)?)?;
+            Self::encrypt_archive_payload_static(
+                &mut file,
+                &encryption_key.ok_or(EngramError::InvalidEncryptionMode)?,
+            )?;
         }
 
         // Write final header with encryption flags

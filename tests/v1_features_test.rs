@@ -46,7 +46,8 @@ fn test_end_record_validation() {
     // Verify ENDR is present (last 64 bytes)
     {
         let file_data = std::fs::read(archive_path).unwrap();
-        let endr_signature = &file_data[file_data.len() - END_RECORD_SIZE..file_data.len() - END_RECORD_SIZE + 4];
+        let endr_signature =
+            &file_data[file_data.len() - END_RECORD_SIZE..file_data.len() - END_RECORD_SIZE + 4];
 
         // ENDR signature: 0x454E4452 ("ENDR")
         assert_eq!(endr_signature, &[0x45, 0x4E, 0x44, 0x52]);
@@ -118,7 +119,12 @@ fn test_frame_compression_large_file() {
 
     // Verify file is actually compressed (should be much smaller than 60MB)
     let archive_size = std::fs::metadata(archive_path).unwrap().len();
-    assert!(archive_size < (size as u64 / 2), "Archive should be compressed (size: {}, original: {})", archive_size, size);
+    assert!(
+        archive_size < (size as u64 / 2),
+        "Archive should be compressed (size: {}, original: {})",
+        archive_size,
+        size
+    );
 }
 
 #[test]
@@ -208,7 +214,8 @@ fn test_all_v1_features_combined() {
         assert_eq!(&file_data[0..4], &[0x89, b'E', b'N', b'G']);
 
         // Check ENDR signature at end
-        let endr_sig = &file_data[file_data.len() - END_RECORD_SIZE..file_data.len() - END_RECORD_SIZE + 4];
+        let endr_sig =
+            &file_data[file_data.len() - END_RECORD_SIZE..file_data.len() - END_RECORD_SIZE + 4];
         assert_eq!(endr_sig, &[0x45, 0x4E, 0x44, 0x52]);
     }
 

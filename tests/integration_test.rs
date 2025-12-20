@@ -1,8 +1,6 @@
 //! Integration tests for engram-rs library
 
-use engram_rs::{
-    ArchiveReader, ArchiveWriter, Author, CompressionMethod, Manifest, VfsReader,
-};
+use engram_rs::{ArchiveReader, ArchiveWriter, Author, CompressionMethod, Manifest, VfsReader};
 use rusqlite::{params, Connection};
 use tempfile::NamedTempFile;
 
@@ -98,12 +96,18 @@ fn test_manifest_integration() {
     );
 
     let test_data = b"Test file content";
-    manifest.add_file("test.txt".to_string(), test_data, Some("text/plain".to_string()));
+    manifest.add_file(
+        "test.txt".to_string(),
+        test_data,
+        Some("text/plain".to_string()),
+    );
 
     // Create archive with manifest
     {
         let mut writer = ArchiveWriter::create(archive_path).unwrap();
-        writer.add_manifest(&serde_json::to_value(&manifest).unwrap()).unwrap();
+        writer
+            .add_manifest(&serde_json::to_value(&manifest).unwrap())
+            .unwrap();
         writer.add_file("test.txt", test_data).unwrap();
         writer.finalize().unwrap();
     }
@@ -115,7 +119,8 @@ fn test_manifest_integration() {
         let manifest_value = reader.read_manifest().unwrap();
         assert!(manifest_value.is_some());
 
-        let parsed = Manifest::from_json(&serde_json::to_vec(&manifest_value.unwrap()).unwrap()).unwrap();
+        let parsed =
+            Manifest::from_json(&serde_json::to_vec(&manifest_value.unwrap()).unwrap()).unwrap();
         assert_eq!(parsed.id, "test-engram");
         assert_eq!(parsed.files.len(), 1);
         assert_eq!(parsed.files[0].path, "test.txt");
@@ -172,7 +177,9 @@ fn test_vfs_database_access() {
         let conn = vfs.open_database("users.db").unwrap();
 
         // Query database
-        let mut stmt = conn.prepare("SELECT name, email FROM users ORDER BY id").unwrap();
+        let mut stmt = conn
+            .prepare("SELECT name, email FROM users ORDER BY id")
+            .unwrap();
         let users: Vec<(String, String)> = stmt
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
             .unwrap()
@@ -350,6 +357,9 @@ fn test_archive_encryption() {
     {
         let mut reader = ArchiveReader::open(archive_path).unwrap();
         let result = reader.initialize();
-        assert!(result.is_err(), "Should fail to initialize without decryption key");
+        assert!(
+            result.is_err(),
+            "Should fail to initialize without decryption key"
+        );
     }
 }
