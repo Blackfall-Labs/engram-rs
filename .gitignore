@@ -5,3 +5,9 @@ Cargo.lock
 # IDE
 .vscode/
 .idea/
+
+# Environment files
+.env
+
+# Example output files
+*.eng

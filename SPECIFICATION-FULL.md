@@ -4,7 +4,7 @@
 **Status:** Final Specification - v1.0
 **Format Version:** 1.0.0
 **Effective Date:** 2025-12-19
-**Authority:** Blackfall Laboratories
+**Author:** Magnus - Blackfall Laboratories
 
 ---
 
@@ -26,15 +26,15 @@ The Engram format serves as the canonical storage layer for institutional knowle
 
 The format architecture emerges from five operational requirements:
 
-**Random Access Efficiency:** Individual file extraction completes in sub-millisecond timeframes without decompressing unrelated content. Hash-indexed table-of-contents enables O(1) lookup complexity regardless of archive size.
+- **Random Access Efficiency:** Individual file extraction completes in sub-millisecond timeframes without decompressing unrelated content. Hash-indexed table-of-contents enables O(1) lookup complexity regardless of archive size.
 
-**Streaming Creation:** Archive construction proceeds without foreknowledge of complete file manifest. Content writers accumulate entries sequentially, finalizing structural metadata upon completion rather than requiring complete directory enumeration at initialization.
+- **Streaming Creation:** Archive construction proceeds without foreknowledge of complete file manifest. Content writers accumulate entries sequentially, finalizing structural metadata upon completion rather than requiring complete directory enumeration at initialization.
 
-**Database Query Integration:** SQLite databases embedded within archives accept standard SQL queries through Virtual File System abstraction. Query execution proceeds at 80-90% of native filesystem performance without intermediate extraction steps.
+- **Database Query Integration:** SQLite databases embedded within archives accept standard SQL queries through Virtual File System abstraction. Query execution proceeds at 80-90% of native filesystem performance without intermediate extraction steps.
 
-**Compression Without Access Penalty:** Per-file compression achieves 40-50% size reduction for text and structured data while maintaining random access characteristics. Large databases employ frame-based compression permitting partial decompression of requested byte ranges.
+- **Compression Without Access Penalty:** Per-file compression achieves 40-50% size reduction for text and structured data while maintaining random access characteristics. Large databases employ frame-based compression permitting partial decompression of requested byte ranges.
 
-**Format Longevity:** Binary structure employs fixed-width fields, explicit versioning, and reserved extension space. Readers validate format compatibility at archive open time, rejecting incompatible versions while maintaining forward compatibility within major version boundaries.
+- **Format Longevity:** Binary structure employs fixed-width fields, explicit versioning, and reserved extension space. Readers validate format compatibility at archive open time, rejecting incompatible versions while maintaining forward compatibility within major version boundaries.
 
 ### 1.3 Architectural Lineage
 
@@ -463,20 +463,20 @@ Implementations must validate archive integrity at multiple checkpoints to detec
 **Validation Sequence:**
 
 1. **Header Validation:**
-   
+
    - Verify magic number matches specification
    - Validate major version within supported range
    - Compute header CRC32, compare against stored value
    - **Failure mode:** Reject archive with explicit format error
 
 2. **End Record Location:**
-   
+
    - Scan backward from file end (maximum 64KB)
    - Locate end record signature
    - **Failure mode:** Archive truncated or corrupted structure
 
 3. **Central Directory Integrity:**
-   
+
    - Read directory at offset specified in end record
    - Verify size matches end record declaration
    - Validate entry count consistency
@@ -484,7 +484,7 @@ Implementations must validate archive integrity at multiple checkpoints to detec
    - **Failure mode:** Structural corruption, reject archive
 
 4. **Per-File Validation (On Access):**
-   
+
    - Read file data at specified offset
    - Decompress if compression method non-zero
    - Compute CRC32 of decompressed data
@@ -688,7 +688,7 @@ license = "MIT"
 
 [author]
 name = "Blackfall Laboratories"
-email = "technical@blackfall.io"
+email = "magnus@blackfall.dev"
 
 [[signatures]]
 algorithm = "ed25519"
@@ -923,9 +923,5 @@ var+320N    64      End of Central Directory Record
 
 ---
 
-**Classification:** Public Technical Specification
-**Distribution:** Unrestricted
-**Maintenance:** Blackfall Laboratories Technical Communications
-
 **For implementation questions or clarification requests, contact:**
-technical-support@blackfall.io
+magnus@blackfall.dev

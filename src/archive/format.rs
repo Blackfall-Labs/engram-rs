@@ -385,20 +385,28 @@ mod tests {
 
     #[test]
     fn test_compression_choice() {
+        // Files >= 4096 bytes with text extensions should use Zstd
         assert_eq!(
-            CompressionMethod::choose_for_file("test.txt", 2000),
+            CompressionMethod::choose_for_file("test.txt", 5000),
             CompressionMethod::Zstd
         );
         assert_eq!(
             CompressionMethod::choose_for_file("test.json", 5000),
             CompressionMethod::Zstd
         );
+        // Binary files use LZ4
         assert_eq!(
             CompressionMethod::choose_for_file("test.db", 10000),
             CompressionMethod::Lz4
         );
+        // Already compressed files should not be compressed
         assert_eq!(
             CompressionMethod::choose_for_file("test.png", 5000),
+            CompressionMethod::None
+        );
+        // Small files (< 4096 bytes) should not be compressed
+        assert_eq!(
+            CompressionMethod::choose_for_file("test.txt", 2000),
             CompressionMethod::None
         );
         assert_eq!(

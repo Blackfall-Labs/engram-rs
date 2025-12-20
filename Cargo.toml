@@ -6,7 +6,11 @@ authors = ["Blackfall Labs"]
 license = "MIT"
 description = "Unified engram archive library with manifest, signatures, and VFS support"
 repository = "https://github.com/blackfall-labs/engram-rs"
-publish = false
+homepage = "https://github.com/blackfall-labs/engram-rs"
+documentation = "https://docs.rs/engram-rs"
+readme = "README.md"
+keywords = ["archive", "compression", "cryptography", "signature", "vfs"]
+categories = ["compression", "cryptography", "database", "filesystem"]
 
 [dependencies]
 # Compression
