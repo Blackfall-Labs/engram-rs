@@ -1,10 +1,10 @@
 [package]
 name = "engram-rs"
-version = "0.4.1"
+version = "1.0.0"
 edition = "2021"
 authors = ["Manifest Humanity"]
 license = "MIT OR Apache-2.0"
-description = "Unified engram archive library with manifest, signatures, and VFS support"
+description = "Unified engram archive library with manifest, signatures, VFS, and frame compression"
 repository = "https://github.com/Manifest-Humanity/engram-rs"
 publish = false
 

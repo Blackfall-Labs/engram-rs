@@ -29,7 +29,7 @@ pub struct ArchiveVfs {
 
 impl Vfs for ArchiveVfs {
     type Handle = ArchiveFile;
-    
+
     fn open(&self, db: &str, opts: OpenOptions) -> Result<Self::Handle> {
         // Extract database from archive into memory buffer
         let data = self.read_from_archive(db)?;
@@ -48,7 +48,7 @@ impl DatabaseHandle for ArchiveFile {
         buf.copy_from_slice(&data[start..start + buf.len()]);
         Ok(())
     }
-    
+
     fn write_all_at(&mut self, buf: &[u8], offset: u64) -> Result<()> {
         let mut data = self.data.write().unwrap();
         let start = offset as usize;
@@ -84,6 +84,7 @@ However, ASAR has limitations for your use case. Placing the TOC at the beginnin
 ### Recommended .eng format specification
 
 **File structure:**
+
 ```
 [File Header: 64 bytes fixed]
 [Local File Entry 1: header + compressed data]
@@ -94,6 +95,7 @@ However, ASAR has limitations for your use case. Placing the TOC at the beginnin
 ```
 
 **File header (64 bytes):**
+
 ```
 Offset  Size  Field
 0-7     8     Magic: 0x89 'E' 'N' 'G' 0x0D 0x0A 0x1A 0x0A
@@ -110,6 +112,7 @@ Offset  Size  Field
 The magic number follows PNG's pattern: non-ASCII first byte (0x89) prevents text misidentification, human-readable "ENG", and line-ending bytes (CR LF, Ctrl-Z, LF) that detect file corruption from text-mode transfers or DOS tools.
 
 **Central Directory entry (320 bytes fixed):**
+
 ```
 0-3     4     Signature 0x43454E54 ("CENT")
 4-11    8     Data Offset (uint64, points to local header)
@@ -140,17 +143,17 @@ impl ArchiveIndex {
     fn from_central_directory(cd_data: &[u8], count: u32) -> Self {
         let mut entries = HashMap::with_capacity(count as usize);
         let mut entry_array = Vec::with_capacity(count as usize);
-        
+
         for i in 0..count {
             let offset = i as usize * 320;
             let entry = parse_cd_entry(&cd_data[offset..offset+320]);
             entries.insert(entry.path.clone(), entry.clone());
             entry_array.push(entry);
         }
-        
+
         Self { entries, entry_array }
     }
-    
+
     fn lookup(&self, path: &str) -> Option<&EntryInfo> {
         self.entries.get(path)  // O(1) average case
     }
@@ -203,7 +206,7 @@ impl EngArchive {
             inner: Arc::new(Mutex::new(ArchiveImpl::open(path)?))
         })
     }
-    
+
     // Zero-copy read for synchronous small files
     #[napi]
     pub fn read_file_sync(&self, path: String) -> Result<Buffer> {
@@ -211,7 +214,7 @@ impl EngArchive {
         let data = archive.read_file(&path)?;
         Ok(data.into())  // Vec<u8> → Buffer (no copy in most cases)
     }
-    
+
     // Async read for I/O-bound operations
     #[napi]
     pub async fn read_file(&self, path: String) -> Result<Buffer> {
@@ -220,7 +223,7 @@ impl EngArchive {
             inner.lock().unwrap().read_file(&path)
         }).await?.map(|v| v.into())
     }
-    
+
     // Batch reading multiple files (critical optimization)
     #[napi]
     pub async fn read_files(&self, paths: Vec<String>) -> Result<Vec<Buffer>> {
@@ -249,16 +252,16 @@ impl EngDatabase {
     pub fn from_archive(archive: &EngArchive, db_path: String) -> Result<Self> {
         // Register custom VFS
         register("engvfs", ArchiveVfs::new(archive.clone()))?;
-        
+
         let conn = rusqlite::Connection::open_with_flags_and_vfs(
             &db_path,
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
             "engvfs"
         )?;
-        
+
         Ok(Self { conn: Arc::new(Mutex::new(conn)) })
     }
-    
+
     #[napi]
     pub fn query(&self, sql: String, params: Vec<JsUnknown>) -> Result<Vec<Object>> {
         // Execute query, convert rows to JS objects
@@ -441,7 +444,7 @@ Implement **dual versioning:** format version in the header (governs binary stru
 fn validate_version(major: u16, minor: u16) -> Result<()> {
     const CURRENT_MAJOR: u16 = 1;
     const CURRENT_MINOR: u16 = 0;
-    
+
     if major > CURRENT_MAJOR {
         return Err("Archive format too new");
     }
@@ -475,16 +478,16 @@ On read errors, fail gracefully:
 pub fn read_file(&self, path: &str) -> Result<Vec<u8>, ArchiveError> {
     let entry = self.index.lookup(path)
         .ok_or(ArchiveError::FileNotFound)?;
-    
+
     let compressed = self.read_at_offset(entry.offset, entry.compressed_size)
         .map_err(|e| ArchiveError::ReadError(e))?;
-    
+
     let decompressed = match entry.compression {
         CompressionMethod::None => compressed,
         CompressionMethod::LZ4 => lz4::decompress(&compressed)?,
         CompressionMethod::Zstd => zstd::decompress(&compressed)?,
     };
-    
+
     let computed_crc = crc32fast::hash(&decompressed);
     if computed_crc != entry.crc32 {
         return Err(ArchiveError::CorruptedData {
@@ -493,7 +496,7 @@ pub fn read_file(&self, path: &str) -> Result<Vec<u8>, ArchiveError> {
             actual: computed_crc,
         });
     }
-    
+
     Ok(decompressed)
 }
 ```
@@ -536,13 +539,13 @@ pub fn extract_git_repo(&self, target_path: String) -> Result<()> {
         let data = self.read_file(path)?;
         std::fs::write(format!("{}/{}", target_path, path), data)?;
     }
-    
+
     // Verify HEAD exists and is valid
     let head = std::fs::read_to_string(format!("{}/.git/HEAD", target_path))?;
     if !head.starts_with("ref: ") {
         return Err("Invalid HEAD");
     }
-    
+
     Ok(())
 }
 ```
@@ -574,6 +577,7 @@ Profile hot paths, optimize hash algorithms, tune compression parameters, implem
 ## Library dependencies
 
 Core Rust crates:
+
 - `napi-rs` 2.x for Node.js bindings
 - `rusqlite` 0.31+ for SQLite operations  
 - `sqlite-vfs` 0.x for VFS trait (may need forking for production hardening)
@@ -585,6 +589,7 @@ Core Rust crates:
 - Optional: `gitoxide` crates if implementing Git features
 
 Build tooling:
+
 - `@napi-rs/cli` for cross-compilation and publishing
 - `electron-rebuild` or `@electron-forge/plugin-native-modules`
 - `cargo-make` or similar for complex build workflows

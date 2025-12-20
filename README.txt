@@ -47,7 +47,7 @@ https://github.com/Manifest-Humanity/engram-rs
 
 ## Version
 
-v0.3.0 - Unified library combining core archive functionality, manifest support, and VFS access.
+v1.0.0 - Production release with complete v1.0 format support: Local Entry Headers (LOCA), End of Central Directory Record (ENDR), and frame-based compression for large files.
 
 ## Migration from engram-core/engram-vfs
 

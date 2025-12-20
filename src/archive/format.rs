@@ -5,9 +5,9 @@ use std::io::{Read, Write};
 /// Follows PNG pattern for corruption detection
 pub const MAGIC_NUMBER: [u8; 8] = [0x89, b'E', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
 
-/// Current format version
-pub const FORMAT_VERSION_MAJOR: u16 = 0;
-pub const FORMAT_VERSION_MINOR: u16 = 4;
+/// Current format version - v1.0 with LOCA, ENDR, and frame compression
+pub const FORMAT_VERSION_MAJOR: u16 = 1;
+pub const FORMAT_VERSION_MINOR: u16 = 0;
 
 /// Header size in bytes
 pub const HEADER_SIZE: usize = 64;
@@ -52,7 +52,7 @@ impl CompressionMethod {
     /// Choose best compression based on file type and size
     pub fn choose_for_file(path: &str, size: u64) -> Self {
         // Don't compress small files
-        if size < 1024 {
+        if size < 4096 {
             return Self::None;
         }
 
@@ -189,8 +189,8 @@ impl FileHeader {
         let entry_count = read_u32(&mut reader)?;
         let content_version = read_u32(&mut reader)?;
 
-        // Read flags (v0.4+) or skip if v0.3
-        let flags = if version_minor >= 4 {
+        // Read flags (v1.0+ or v0.4+)
+        let flags = if version_major >= 1 || version_minor >= 4 {
             read_u32(&mut reader)?
         } else {
             // v0.3 compatibility: skip 4 bytes, flags = 0 (no encryption)
@@ -365,10 +365,14 @@ mod tests {
 
     #[test]
     fn test_compression_choice() {
-        assert_eq!(CompressionMethod::choose_for_file("test.txt", 2000), CompressionMethod::Zstd);
-        assert_eq!(CompressionMethod::choose_for_file("test.json", 5000), CompressionMethod::Zstd);
+        // Files >= 4KB get compressed
+        assert_eq!(CompressionMethod::choose_for_file("test.txt", 5000), CompressionMethod::Zstd);
+        assert_eq!(CompressionMethod::choose_for_file("test.json", 10000), CompressionMethod::Zstd);
         assert_eq!(CompressionMethod::choose_for_file("test.db", 10000), CompressionMethod::Lz4);
-        assert_eq!(CompressionMethod::choose_for_file("test.png", 5000), CompressionMethod::None);
+        // Already compressed formats - never compressed
+        assert_eq!(CompressionMethod::choose_for_file("test.png", 10000), CompressionMethod::None);
+        // Files < 4KB not compressed
+        assert_eq!(CompressionMethod::choose_for_file("test.txt", 2000), CompressionMethod::None);
         assert_eq!(CompressionMethod::choose_for_file("test.txt", 500), CompressionMethod::None);
     }
 

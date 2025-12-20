@@ -1,5 +1,11 @@
 use crate::error::{EngramError, Result};
-use crate::archive::format::{CompressionMethod, EncryptionMode, EntryInfo, FileHeader};
+use crate::archive::end_record::EndRecord;
+use crate::archive::format::{
+    CompressionMethod, EncryptionMode, EntryInfo, FileHeader, FORMAT_VERSION_MAJOR,
+    FORMAT_VERSION_MINOR,
+};
+use crate::archive::frame_compression::{compress_frames, should_use_frames};
+use crate::archive::local_entry::LocalEntryHeader;
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
@@ -101,10 +107,30 @@ impl ArchiveWriter {
             .unwrap()
             .as_secs();
 
-        // Create entry
+        // Record offset to LOCAL ENTRY HEADER (v1.0 format)
+        let entry_start_offset = self.current_offset;
+
+        // Create and write Local Entry Header (LOCA)
+        let local_header = LocalEntryHeader::new(
+            data.len() as u64,         // uncompressed_size
+            final_payload.len() as u64, // compressed_size
+            crc32,
+            modified_time,
+            actual_compression,
+            normalized_path.clone(),
+        );
+
+        let header_bytes_written = local_header.write_to(&mut self.writer)?;
+        self.current_offset += header_bytes_written as u64;
+
+        // Write file data after LOCA header
+        self.writer.write_all(&final_payload)?;
+        self.current_offset += final_payload.len() as u64;
+
+        // Create central directory entry (data_offset points to LOCA header)
         let entry = EntryInfo {
             path: normalized_path,
-            data_offset: self.current_offset,
+            data_offset: entry_start_offset, // Points to LOCA header
             uncompressed_size: data.len() as u64,
             compressed_size: final_payload.len() as u64,
             crc32,
@@ -112,10 +138,6 @@ impl ArchiveWriter {
             compression: actual_compression,
             flags: 0,
         };
-
-        // Write final payload
-        self.writer.write_all(&final_payload)?;
-        self.current_offset += final_payload.len() as u64;
 
         // Store entry for central directory
         self.entries.push(entry);
@@ -175,6 +197,19 @@ impl ArchiveWriter {
         header.entry_count = entry_count;
         header.set_encryption_mode(encryption_mode);
         header.write_to(&mut file)?;
+
+        // Write End Record (ENDR) at end of archive (v1.0)
+        file.seek(SeekFrom::End(0))?;
+        let end_record = EndRecord::new(
+            FORMAT_VERSION_MAJOR,
+            FORMAT_VERSION_MINOR,
+            cd_offset,
+            cd_size,
+            entry_count,
+            0, // archive_crc32 - TODO: calculate full archive checksum
+        );
+        end_record.write_to(&mut file)?;
+
         file.flush()?;
 
         Ok(())
@@ -212,6 +247,20 @@ impl ArchiveWriter {
         data: &[u8],
         compression: CompressionMethod,
     ) -> Result<(Vec<u8>, CompressionMethod)> {
+        // Check if file should use frame-based compression (>= 50MB)
+        if should_use_frames(data.len()) {
+            match compression {
+                CompressionMethod::None => return Ok((data.to_vec(), CompressionMethod::None)),
+                CompressionMethod::Lz4 | CompressionMethod::Zstd => {
+                    // Use frame-based compression for large files
+                    let compressed = compress_frames(data, compression)?;
+                    // Frame compression is always beneficial for large files
+                    return Ok((compressed, compression));
+                }
+            }
+        }
+
+        // Regular compression for files < 50MB
         let compressed = match compression {
             CompressionMethod::None => return Ok((data.to_vec(), CompressionMethod::None)),
             CompressionMethod::Lz4 => Self::compress_lz4(data)?,
@@ -289,6 +338,10 @@ impl ArchiveWriter {
         // Write: [nonce][ciphertext||tag]
         file.write_all(&nonce_bytes)?;
         file.write_all(&ciphertext_with_tag)?;
+
+        // Truncate file to remove any leftover data
+        let new_size = 64 + 12 + ciphertext_with_tag.len() as u64;
+        file.set_len(new_size)?;
         file.flush()?;
 
         // Note: Central directory offsets in header are payload-relative (will be interpreted after decryption)

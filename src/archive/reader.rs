@@ -1,5 +1,8 @@
 use crate::error::{EngramError, Result};
+use crate::archive::end_record::{EndRecord, END_RECORD_SIZE};
 use crate::archive::format::{CompressionMethod, EncryptionMode, EntryInfo, FileHeader};
+use crate::archive::frame_compression::{decompress_frames, should_use_frames};
+use crate::archive::local_entry::LocalEntryHeader;
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
@@ -59,15 +62,21 @@ impl ArchiveReader {
     pub fn initialize(&mut self) -> Result<()> {
         match self.encryption_mode {
             EncryptionMode::None => {
+                // Validate ENDR for unencrypted archives
+                self.validate_end_record()?;
                 // Read central directory normally from file
                 self.read_central_directory_from_file()?;
             }
             EncryptionMode::Archive => {
+                // For encrypted archives, skip ENDR validation for now
+                // TODO: Validate ENDR after decryption
                 // Decrypt entire payload, then read central directory from memory
                 self.decrypt_archive_payload()?;
                 self.read_central_directory_from_memory()?;
             }
             EncryptionMode::PerFile => {
+                // Validate ENDR for per-file encryption
+                self.validate_end_record()?;
                 // Central directory not encrypted, read normally
                 self.read_central_directory_from_file()?;
             }
@@ -158,19 +167,40 @@ impl ArchiveReader {
             .clone();
 
         // Read data (from file or from decrypted payload)
+        // For v1.0: entry.data_offset points to LOCA header, not file data
         let raw_data = match self.encryption_mode {
             EncryptionMode::Archive => {
                 // Read from decrypted payload buffer
-                // entry.data_offset is absolute (file offset), subtract header size for payload index
                 let payload = self.decrypted_payload.as_ref()
                     .ok_or(EngramError::DecryptionFailed)?;
-                let start = (entry.data_offset - 64) as usize;
-                let end = start + entry.compressed_size as usize;
-                payload[start..end].to_vec()
+
+                // entry.data_offset is absolute (file offset), subtract header size for payload index
+                let loca_start = (entry.data_offset - 64) as usize;
+
+                // Read and validate LOCA header from memory
+                let mut cursor = Cursor::new(&payload[loca_start..]);
+                let local_header = LocalEntryHeader::read_from(&mut cursor)?;
+
+                // Validate LOCA header matches central directory
+                self.validate_local_header(&local_header, &entry)?;
+
+                // Calculate data start position (after LOCA header)
+                let data_start = loca_start + local_header.header_size();
+                let data_end = data_start + entry.compressed_size as usize;
+                payload[data_start..data_end].to_vec()
             }
             _ => {
                 // Read from file (normal or per-file encrypted)
+                // Seek to LOCA header
                 self.file.seek(SeekFrom::Start(entry.data_offset))?;
+
+                // Read and validate LOCA header
+                let local_header = LocalEntryHeader::read_from(&mut self.file)?;
+
+                // Validate LOCA header matches central directory
+                self.validate_local_header(&local_header, &entry)?;
+
+                // Read file data (file cursor is now positioned after LOCA header)
                 let mut data = vec![0u8; entry.compressed_size as usize];
                 self.file.read_exact(&mut data)?;
                 data
@@ -185,10 +215,19 @@ impl ArchiveReader {
         };
 
         // Decompress if needed
-        let decompressed = match entry.compression {
-            CompressionMethod::None => compressed_data,
-            CompressionMethod::Lz4 => Self::decompress_lz4(&compressed_data, &entry)?,
-            CompressionMethod::Zstd => Self::decompress_zstd(&compressed_data)?,
+        // Check if file used frame-based compression (>= 50MB uncompressed)
+        let decompressed = if should_use_frames(entry.uncompressed_size as usize)
+            && entry.compression != CompressionMethod::None
+        {
+            // Use frame decompression for large files
+            decompress_frames(&compressed_data, entry.compression, entry.uncompressed_size)?
+        } else {
+            // Regular decompression for files < 50MB
+            match entry.compression {
+                CompressionMethod::None => compressed_data,
+                CompressionMethod::Lz4 => Self::decompress_lz4(&compressed_data, &entry)?,
+                CompressionMethod::Zstd => Self::decompress_zstd(&compressed_data)?,
+            }
         };
 
         // Verify CRC
@@ -268,10 +307,86 @@ impl ArchiveReader {
             .collect()
     }
 
+    /// Read and validate End Record (ENDR) from archive end
+    fn validate_end_record(&mut self) -> Result<()> {
+        // Seek to last 64 bytes (ENDR location)
+        let file_size = self.file.metadata()?.len();
+        if file_size < (END_RECORD_SIZE as u64) {
+            return Err(EngramError::InvalidFormat(
+                "Archive too small to contain ENDR record".to_string(),
+            ));
+        }
+
+        let endr_offset = file_size - (END_RECORD_SIZE as u64);
+        self.file.seek(SeekFrom::Start(endr_offset))?;
+
+        // Read End Record
+        let end_record = EndRecord::read_from(&mut self.file)?;
+
+        // Validate against header
+        end_record.validate_against_header(
+            self.header.version_major,
+            self.header.version_minor,
+            self.header.central_directory_offset,
+            self.header.central_directory_size,
+            self.header.entry_count,
+        )?;
+
+        Ok(())
+    }
+
+    /// Validate Local Entry Header against Central Directory entry
+    fn validate_local_header(&self, local: &LocalEntryHeader, central: &EntryInfo) -> Result<()> {
+        // Verify path matches
+        if local.path != central.path {
+            return Err(EngramError::InvalidFormat(format!(
+                "LOCA header path mismatch: expected '{}', found '{}'",
+                central.path, local.path
+            )));
+        }
+
+        // Verify sizes match
+        if local.uncompressed_size != central.uncompressed_size {
+            return Err(EngramError::InvalidFormat(format!(
+                "LOCA header uncompressed_size mismatch for '{}': expected {}, found {}",
+                central.path, central.uncompressed_size, local.uncompressed_size
+            )));
+        }
+
+        if local.compressed_size != central.compressed_size {
+            return Err(EngramError::InvalidFormat(format!(
+                "LOCA header compressed_size mismatch for '{}': expected {}, found {}",
+                central.path, central.compressed_size, local.compressed_size
+            )));
+        }
+
+        // Verify CRC32 matches
+        if local.crc32 != central.crc32 {
+            return Err(EngramError::InvalidFormat(format!(
+                "LOCA header CRC32 mismatch for '{}': expected 0x{:08X}, found 0x{:08X}",
+                central.path, central.crc32, local.crc32
+            )));
+        }
+
+        // Verify compression method matches
+        if local.compression != central.compression {
+            return Err(EngramError::InvalidFormat(format!(
+                "LOCA header compression method mismatch for '{}': expected {:?}, found {:?}",
+                central.path, central.compression, local.compression
+            )));
+        }
+
+        Ok(())
+    }
+
     /// Decrypt entire archive payload (archive-level encryption)
     fn decrypt_archive_payload(&mut self) -> Result<()> {
         let key = self.decryption_key.as_ref()
             .ok_or(EngramError::MissingDecryptionKey)?;
+
+        // Calculate encrypted payload size (file - header - ENDR)
+        let file_size = self.file.metadata()?.len();
+        let encrypted_size = file_size - 64 - (END_RECORD_SIZE as u64);
 
         // Read encrypted payload: [nonce 12 bytes][ciphertext||tag]
         self.file.seek(SeekFrom::Start(64))?;  // After header
@@ -281,9 +396,10 @@ impl ArchiveReader {
         self.file.read_exact(&mut nonce_bytes)?;
         let nonce = Nonce::from_slice(&nonce_bytes);
 
-        // Read ciphertext + tag (rest of file)
-        let mut ciphertext_with_tag = Vec::new();
-        self.file.read_to_end(&mut ciphertext_with_tag)?;
+        // Read ciphertext + tag (excluding ENDR at end)
+        let ciphertext_size = encrypted_size - 12; // Subtract nonce size
+        let mut ciphertext_with_tag = vec![0u8; ciphertext_size as usize];
+        self.file.read_exact(&mut ciphertext_with_tag)?;
 
         // Decrypt
         let cipher = Aes256Gcm::new(key.into());
