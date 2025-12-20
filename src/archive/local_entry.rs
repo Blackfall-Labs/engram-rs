@@ -178,7 +178,7 @@ impl LocalEntryHeader {
         1 + // Flags
         2 + // Path length
         4 + // Reserved
-        self.path.as_bytes().len() + 1 // Path + null terminator
+        self.path.len() + 1 // Path + null terminator
     }
 }
 

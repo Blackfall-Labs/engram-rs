@@ -58,7 +58,7 @@ impl VfsReader {
         let temp_dir = self.temp_dir.as_ref().unwrap();
 
         // Create a safe filename for extraction
-        let safe_name = db_path.replace('/', "_").replace('\\', "_");
+        let safe_name = db_path.replace(['/', '\\'], "_");
         let extract_path = temp_dir.path().join(safe_name);
 
         // Extract database to temp location

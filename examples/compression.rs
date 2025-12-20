@@ -1,7 +1,6 @@
 /// Example demonstrating different compression methods
 ///
 /// Run with: cargo run --example compression
-
 use engram_rs::{ArchiveWriter, ArchiveReader, CompressionMethod};
 use std::error::Error;
 

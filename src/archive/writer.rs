@@ -296,6 +296,7 @@ impl ArchiveWriter {
 
         // Generate unique nonce for this file
         let nonce_bytes: [u8; 12] = rand::random();
+        #[allow(deprecated)]
         let nonce = Nonce::from_slice(&nonce_bytes);
 
         // Encrypt compressed data
@@ -324,6 +325,7 @@ impl ArchiveWriter {
 
         // Generate nonce for archive encryption
         let nonce_bytes: [u8; 12] = rand::random();
+        #[allow(deprecated)]
         let nonce = Nonce::from_slice(&nonce_bytes);
 
         // Encrypt the entire payload

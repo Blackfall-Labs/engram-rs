@@ -1,7 +1,6 @@
 /// Basic example demonstrating archive creation and reading
 ///
 /// Run with: cargo run --example basic
-
 use engram_rs::{ArchiveWriter, ArchiveReader, CompressionMethod};
 use std::error::Error;
 

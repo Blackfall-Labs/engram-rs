@@ -230,7 +230,7 @@ impl FileHeader {
     pub fn validate_version(&self) -> Result<()> {
         if self.version_major > FORMAT_VERSION_MAJOR {
             return Err(EngramError::UnsupportedVersion(
-                (self.version_major as u16) << 8 | self.version_minor as u16,
+                self.version_major << 8 | self.version_minor,
             ));
         }
         Ok(())

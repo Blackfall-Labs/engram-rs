@@ -27,7 +27,7 @@ pub fn compress_frames(data: &[u8], method: CompressionMethod) -> Result<Vec<u8>
     }
 
     // Calculate number of frames
-    let frame_count = (data.len() + FRAME_SIZE - 1) / FRAME_SIZE; // Ceiling division
+    let frame_count = data.len().div_ceil(FRAME_SIZE);
     let mut output = Vec::new();
 
     // Write frame count
@@ -197,8 +197,8 @@ mod tests {
     #[test]
     fn test_frame_size_calculation() {
         // Test that frames are correctly sized
-        let size = 60 * 1024 * 1024;
-        let frame_count = (size + FRAME_SIZE - 1) / FRAME_SIZE;
+        let size: usize = 60 * 1024 * 1024;
+        let frame_count = size.div_ceil(FRAME_SIZE);
 
         // Should be approximately 960 frames for 60MB
         assert_eq!(frame_count, 960);

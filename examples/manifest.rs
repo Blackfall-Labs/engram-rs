@@ -1,9 +1,8 @@
 /// Example demonstrating manifests and Ed25519 signatures
 ///
 /// Run with: cargo run --example manifest
-
-use engram_rs::{ArchiveWriter, ArchiveReader, Manifest, Author, Metadata};
 use ed25519_dalek::SigningKey;
+use engram_rs::{ArchiveReader, ArchiveWriter, Author, Manifest, Metadata};
 use rand::rngs::OsRng;
 use std::error::Error;
 
@@ -94,7 +93,10 @@ fn verify_archive() -> Result<(), Box<dyn Error>> {
         let all_valid = results.iter().all(|&v| v);
 
         if all_valid && !results.is_empty() {
-            println!("\n   ✓ Signature verification: VALID ({} signature(s))", results.len());
+            println!(
+                "\n   ✓ Signature verification: VALID ({} signature(s))",
+                results.len()
+            );
         } else if results.is_empty() {
             println!("\n   ⚠ No signatures to verify");
         } else {

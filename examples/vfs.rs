@@ -1,7 +1,6 @@
 /// Example demonstrating VFS (Virtual File System) for SQLite databases
 ///
 /// Run with: cargo run --example vfs
-
 use engram_rs::{ArchiveWriter, VfsReader};
 use rusqlite::Connection;
 use std::error::Error;

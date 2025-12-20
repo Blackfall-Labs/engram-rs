@@ -394,6 +394,7 @@ impl ArchiveReader {
         // Read nonce
         let mut nonce_bytes = [0u8; 12];
         self.file.read_exact(&mut nonce_bytes)?;
+        #[allow(deprecated)]
         let nonce = Nonce::from_slice(&nonce_bytes);
 
         // Read ciphertext + tag (excluding ENDR at end)
@@ -423,6 +424,7 @@ impl ArchiveReader {
             .ok_or(EngramError::MissingDecryptionKey)?;
 
         // Extract nonce (first 12 bytes)
+        #[allow(deprecated)]
         let nonce = Nonce::from_slice(&payload[0..12]);
 
         // Rest is ciphertext + tag
