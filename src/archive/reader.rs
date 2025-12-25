@@ -52,6 +52,27 @@ impl ArchiveReader {
         })
     }
 
+    /// Open and initialize archive in one step (recommended for most use cases)
+    ///
+    /// This is a convenience method that combines `open()` and `initialize()`.
+    /// Use this for unencrypted archives or archives with per-file encryption.
+    ///
+    /// For archive-level encryption, use `open()` then `with_decryption_key()` then `initialize()`.
+    pub fn open_and_init<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let mut reader = Self::open(path)?;
+        reader.initialize()?;
+        Ok(reader)
+    }
+
+    /// Open and initialize an encrypted archive with decryption key
+    ///
+    /// Convenience method for archive-level encrypted files.
+    pub fn open_encrypted<P: AsRef<Path>>(path: P, key: &[u8; 32]) -> Result<Self> {
+        let mut reader = Self::open(path)?.with_decryption_key(key);
+        reader.initialize()?;
+        Ok(reader)
+    }
+
     /// Provide decryption key for encrypted archives
     pub fn with_decryption_key(mut self, key: &[u8; 32]) -> Self {
         self.decryption_key = Some(*key);
