@@ -1,9 +1,9 @@
 [package]
 name = "engram-rs"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2021"
 authors = ["Blackfall Labs"]
-license = "MIT"
+license = "MIT OR Apache-2.0"
 description = "Unified engram archive library with manifest, signatures, and VFS support"
 repository = "https://github.com/blackfall-labs/engram-rs"
 homepage = "https://github.com/blackfall-labs/engram-rs"
